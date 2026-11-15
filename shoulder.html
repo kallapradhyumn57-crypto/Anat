@@ -345,17 +345,128 @@ function rod(parent,a,b,r,color) {
   bones.scapula.add(glenoidSocket);
 
 
-// Simplified humerus
-bones.humerus = new THREE.Group();
-scene.add(bones.humerus);
+  // Anatomically Accurate 3D Humerus
+  bones.humerus = new THREE.Group();
+  scene.add(bones.humerus);
 
-sphere(bones.humerus,.45,1.1,0,.4,.4,.4,"#f0e2c5");
+  const humMat = new THREE.MeshStandardMaterial({
+    color: "#e8dac0",
+    roughness: 0.54,
+    metalness: 0.05
+  });
+  const articularMat = new THREE.MeshStandardMaterial({
+    color: "#f5efe2",
+    roughness: 0.32,
+    metalness: 0.04
+  });
 
-rod(bones.humerus,[.55,.9,0],[.9,-1.2,0],
-.2,"#e6d8b9");
+  // 1. Head of Humerus (directed medially, upwards & slightly backwards into Glenoid)
+  const humHead = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 28, 24),
+    articularMat
+  );
+  humHead.position.set(0.28, 1.04, -0.10);
+  humHead.scale.set(0.95, 1.05, 0.96);
+  bones.humerus.add(humHead);
 
-sphere(bones.humerus,.9,-1.2,0,.27,.3,.23,"#e6d8b9");
+  // 2. Anatomical Neck & Upper Metaphysis
+  const anatNeck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.165, 0.175, 0.14, 24),
+    humMat
+  );
+  anatNeck.position.set(0.36, 0.98, -0.09);
+  anatNeck.rotation.z = Math.PI / 4.2;
+  bones.humerus.add(anatNeck);
 
+  // 3. Greater Tubercle (Lateral prominence) & Lesser Tubercle (Anterior prominence)
+  // Gap between them forms the Intertubercular Sulcus (Bicipital Groove)
+  const greaterTubercle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.115, 20, 18),
+    humMat
+  );
+  greaterTubercle.position.set(0.47, 1.03, -0.11);
+  greaterTubercle.scale.set(0.85, 1.25, 0.95);
+  bones.humerus.add(greaterTubercle);
+
+  const lesserTubercle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.088, 18, 16),
+    humMat
+  );
+  lesserTubercle.position.set(0.39, 0.99, 0.04);
+  lesserTubercle.scale.set(0.90, 1.15, 0.85);
+  bones.humerus.add(lesserTubercle);
+
+  // 4. Shaft of Humerus (Cylindrical upper -> Triangular distal) + Surgical Neck
+  const humShaftCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.40, 0.92, -0.08),  // Surgical neck
+    new THREE.Vector3(0.45, 0.45, -0.07),  // Upper-mid shaft
+    new THREE.Vector3(0.51, -0.15, -0.06), // Lower-mid shaft
+    new THREE.Vector3(0.56, -0.78, -0.05)  // Supracondylar region
+  ]);
+  const humShaftGeo = new THREE.TubeGeometry(humShaftCurve, 32, 0.115, 18, false);
+  const hPos = humShaftGeo.attributes.position;
+  for (let i = 0; i < hPos.count; i++) {
+    const vx = hPos.getX(i);
+    const vy = hPos.getY(i);
+    const vz = hPos.getZ(i);
+    const t = Math.max(0, Math.min(1, (0.92 - vy) / 1.70));
+    const center = humShaftCurve.getPointAt(t);
+    // Surgical neck slight taper (t near 0), mid-shaft taper, distal flare (t > 0.78)
+    const neckTaper = t < 0.12 ? 1.12 - t * 1.2 : 1.0;
+    const distalFlareX = t > 0.78 ? 1 + ((t - 0.78) / 0.22) * 1.25 : 1.0;
+    const distalFlatZ = t > 0.78 ? 1 - ((t - 0.78) / 0.22) * 0.32 : 1.0;
+
+    hPos.setX(i, center.x + (vx - center.x) * neckTaper * distalFlareX);
+    hPos.setZ(i, center.z + (vz - center.z) * neckTaper * distalFlatZ);
+  }
+  humShaftGeo.computeVertexNormals();
+  const humShaft = new THREE.Mesh(humShaftGeo, humMat);
+  bones.humerus.add(humShaft);
+
+  // 5. Deltoid Tuberosity (V-shaped lateral roughening on mid-shaft)
+  const deltoidTub = new THREE.Mesh(
+    new THREE.SphereGeometry(0.055, 14, 12),
+    humMat
+  );
+  deltoidTub.position.set(0.54, 0.28, -0.06);
+  deltoidTub.scale.set(0.65, 2.4, 0.75);
+  bones.humerus.add(deltoidTub);
+
+  // 6. Distal End: Medial & Lateral Epicondyles, Trochlea & Capitulum
+  const medialEpicondyle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.078, 16, 14),
+    humMat
+  );
+  medialEpicondyle.position.set(0.32, -0.84, -0.05);
+  medialEpicondyle.scale.set(1.25, 0.90, 0.85);
+  bones.humerus.add(medialEpicondyle);
+
+  const lateralEpicondyle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.064, 16, 14),
+    humMat
+  );
+  lateralEpicondyle.position.set(0.79, -0.83, -0.05);
+  lateralEpicondyle.scale.set(1.10, 0.90, 0.85);
+  bones.humerus.add(lateralEpicondyle);
+
+  // Trochlea (Pulley-shaped medial articular surface)
+  const trochlea = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.075, 0.088, 0.17, 20),
+    articularMat
+  );
+  trochlea.position.set(0.47, -0.90, -0.04);
+  trochlea.rotation.z = Math.PI / 2.05;
+  bones.humerus.add(trochlea);
+
+  // Capitulum (Rounded lateral articular eminence)
+  const capitulum = new THREE.Mesh(
+    new THREE.SphereGeometry(0.082, 18, 16),
+    articularMat
+  );
+  capitulum.position.set(0.66, -0.89, -0.03);
+  capitulum.scale.set(1.05, 0.95, 1.0);
+  bones.humerus.add(capitulum);
+  
 const descriptions = {
  all: "The shoulder region includes the clavicle, scapula and humerus.",
  scapula: "Scapula: A flat triangular bone situated on the posterior aspect of the thoracic wall.",
