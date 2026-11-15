@@ -179,13 +179,121 @@ rod(bones.clavicle,[-1.5,1.5,0],[0,1.55,0],
 rod(bones.clavicle,[0,1.55,0],[1.5,1.5,0],
 .12,"#e6d8b9");
 
-// Simplified scapula
-bones.scapula = new THREE.Group();
-scene.add(bones.scapula);
+  // Anatomically Accurate 3D Scapula
+  bones.scapula = new THREE.Group();
+  scene.add(bones.scapula);
 
-sphere(bones.scapula,-.65,.5,-.2,.75,.85,.16,"#d9cbaa");
-sphere(bones.scapula,-.1,1.2,-.2,.55,.14,.15,"#d9cbaa");
-sphere(bones.scapula,-.1,1.2,.0,.25,.2,.18,"#e8d9b8");
+  const scapMat = new THREE.MeshStandardMaterial({
+    color: "#e8dac0",
+    roughness: 0.55,
+    metalness: 0.05,
+    side: THREE.DoubleSide
+  });
+  const fossaMat = new THREE.MeshStandardMaterial({
+    color: "#d4c2a3",
+    roughness: 0.65,
+    side: THREE.DoubleSide
+  });
+
+  // 1. Triangular Scapular Blade (Borders, Angles & Fossae)
+  const bladeShape = new THREE.Shape();
+  bladeShape.moveTo(-1.15, 1.32); // Superior Angle
+  bladeShape.quadraticCurveTo(-0.62, 1.26, -0.15, 1.24); // Superior Border + Suprascapular notch
+  bladeShape.lineTo(0.08, 1.05);  // Lateral Angle (Glenoid neck)
+  bladeShape.quadraticCurveTo(-0.35, 0.30, -0.92, -0.48); // Thick Lateral (Axillary) Border
+  bladeShape.quadraticCurveTo(-0.98, -0.54, -1.04, -0.46); // Inferior Angle
+  bladeShape.quadraticCurveTo(-1.18, 0.45, -1.15, 1.32); // Medial (Vertebral) Border
+
+  const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, {
+    depth: 0.07,
+    bevelEnabled: true,
+    bevelThickness: 0.025,
+    bevelSize: 0.025,
+    bevelSegments: 4,
+    curveSegments: 24
+  });
+
+  // Sculpt realistic anterior concavity (Subscapular fossa) & posterior convexity
+  const bPos = bladeGeo.attributes.position;
+  for (let i = 0; i < bPos.count; i++) {
+    const vx = bPos.getX(i);
+    const vy = bPos.getY(i);
+    const vz = bPos.getZ(i);
+    const arch = Math.sin(((vx + 1.18) / 1.26) * Math.PI) * 0.11;
+    const vertCurve = Math.sin(((vy + 0.54) / 1.86) * Math.PI) * 0.06;
+    bPos.setZ(i, vz - arch - vertCurve);
+  }
+  bladeGeo.computeVertexNormals();
+
+  const scapBlade = new THREE.Mesh(bladeGeo, scapMat);
+  scapBlade.position.set(0, 0, -0.24);
+  bones.scapula.add(scapBlade);
+
+  // 2. Spine of Scapula (dividing Supraspinous & Infraspinous Fossae)
+  const spineCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-1.14, 0.92, -0.22), // Root of spine at medial border
+    new THREE.Vector3(-0.75, 1.02, -0.34), // Mid-spine crest
+    new THREE.Vector3(-0.32, 1.14, -0.42), // Lateral spine rising
+    new THREE.Vector3(-0.04, 1.26, -0.36)  // Acromial angle
+  ]);
+  const spineGeo = new THREE.TubeGeometry(spineCurve, 28, 0.055, 12, false);
+  const sPos = spineGeo.attributes.position;
+  for (let i = 0; i < sPos.count; i++) {
+    sPos.setY(i, sPos.getY(i) * 1.02);
+  }
+  spineGeo.computeVertexNormals();
+  const scapSpine = new THREE.Mesh(spineGeo, scapMat);
+  bones.scapula.add(scapSpine);
+
+  // 3. Acromion Process (arching forward over glenoid toward clavicle)
+  const acromionCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.04, 1.26, -0.36),
+    new THREE.Vector3(0.14, 1.38, -0.20),
+    new THREE.Vector3(0.24, 1.44, 0.02),
+    new THREE.Vector3(0.16, 1.46, 0.16) // Clavicular facet of acromion
+  ]);
+  const acromionGeo = new THREE.TubeGeometry(acromionCurve, 24, 0.075, 12, false);
+  acromionGeo.scale(1, 0.96, 1);
+  const acromionMesh = new THREE.Mesh(acromionGeo, scapMat);
+  bones.scapula.add(acromionMesh);
+
+  // 4. Coracoid Process (hook-like anterior-lateral projection)
+  const coracoidCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.14, 1.18, -0.18), // Base at superior border/neck
+    new THREE.Vector3(-0.06, 1.32, -0.02), // Ascending part
+    new THREE.Vector3(0.08, 1.28, 0.18),   // Horizontal hook
+    new THREE.Vector3(0.22, 1.22, 0.28)    // Tip of coracoid
+  ]);
+  const coracoidGeo = new THREE.TubeGeometry(coracoidCurve, 24, 0.052, 12, false);
+  const coracoidMesh = new THREE.Mesh(coracoidGeo, scapMat);
+  bones.scapula.add(coracoidMesh);
+
+  // 5. Glenoid Cavity & Neck (pear-shaped lateral articular socket)
+  const glenoidNeck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.13, 0.16, 0.16, 20),
+    scapMat
+  );
+  glenoidNeck.position.set(0.06, 1.04, -0.14);
+  glenoidNeck.rotation.z = -Math.PI / 2.3;
+  bones.scapula.add(glenoidNeck);
+
+  const glenoidRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.14, 0.032, 14, 28),
+    scapMat
+  );
+  glenoidRim.position.set(0.14, 1.05, -0.11);
+  glenoidRim.rotation.y = Math.PI / 2.2;
+  glenoidRim.scale.set(0.82, 1.25, 1); // Pear-shaped glenoid
+  bones.scapula.add(glenoidRim);
+
+  const glenoidSocket = new THREE.Mesh(
+    new THREE.SphereGeometry(0.135, 20, 16),
+    fossaMat
+  );
+  glenoidSocket.position.set(0.125, 1.05, -0.11);
+  glenoidSocket.scale.set(0.25, 1.22, 0.80);
+  bones.scapula.add(glenoidSocket);
+
 
 // Simplified humerus
 bones.humerus = new THREE.Group();
