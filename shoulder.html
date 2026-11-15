@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anatomy Vision - Shoulder Lab</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #080e19;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  padding: 18px;
+  background: #14243a;
+  border-bottom: 1px solid #29435e;
+}
+
+h2 { color: #48dafa; margin: 0; }
+header p { color: #9aacc4; font-size: 12px; }
+
+main { padding: 15px; }
+
+#viewer {
+  height: 52vh;
+  min-height: 320px;
+  border: 1px solid #29435e;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+button {
+  flex: 1;
+  min-width: 90px;
+  padding: 12px 7px;
+  color: white;
+  background: #192d45;
+  border: 1px solid #355472;
+  border-radius: 9px;
+}
+
+button.active { background: #087f9d; }
+
+#info {
+  padding: 15px;
+  background: #14243a;
+  border-radius: 12px;
+  color: #c2d5eb;
+  line-height: 1.5;
+}
+
+#info h3 { color: #48dafa; }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+
+<body>
+
+<header>
+  <h2>SHOULDER JOINT LAB</h2>
+  <p>ANATOMY VISION 3D</p>
+</header>
+
+<main>
+  <h3>Explore Shoulder Joint</h3>
+
+  <div id="viewer"></div>
+
+  <div class="controls">
+    <button id="all" class="active">All Bones</button>
+    <button id="scapula">Scapula</button>
+    <button id="humerus">Humerus</button>
+    <button id="clavicle">Clavicle</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div id="info">
+    <h3>Shoulder Joint</h3>
+    Select a bone to explore its basic anatomy.
+  </div>
+</main>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from
+"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js";
+
+const viewer = document.getElementById("viewer");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#0c1728");
+
+const camera = new THREE.PerspectiveCamera(
+  45, viewer.clientWidth / viewer.clientHeight, 0.1, 100
+);
+
+camera.position.set(4, 3, 6);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+viewer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x445566,2));
+
+const light = new THREE.DirectionalLight(0xffffff,2);
+light.position.set(4,5,6);
+scene.add(light);
+
+const bones = {};
+
+function material(color) {
+ return new THREE.MeshStandardMaterial({
+  color: color,
+  roughness: 0.65
+ });
+}
+
+function sphere(parent,x,y,z,sx,sy,sz,color) {
+ const obj = new THREE.Mesh(
+  new THREE.SphereGeometry(1,32,24),
+  material(color)
+ );
+ obj.position.set(x,y,z);
+ obj.scale.set(sx,sy,sz);
+ parent.add(obj);
+ return obj;
+}
+
+function rod(parent,a,b,r,color) {
+ const start = new THREE.Vector3(...a);
+ const end = new THREE.Vector3(...b);
+ const direction = new THREE.Vector3().subVectors(end,start);
+
+ const obj = new THREE.Mesh(
+  new THREE.CylinderGeometry(r,r,direction.length(),24),
+  material(color)
+ );
+
+ obj.position.copy(start).add(end).multiplyScalar(.5);
+ obj.quaternion.setFromUnitVectors(
+  new THREE.Vector3(0,1,0),
+  direction.normalize()
+ );
+ parent.add(obj);
+ return obj;
+}
+
+// Simplified clavicle
+bones.clavicle = new THREE.Group();
+scene.add(bones.clavicle);
+
+rod(bones.clavicle,[-1.5,1.5,0],[0,1.55,0],
+.12,"#e6d8b9");
+
+rod(bones.clavicle,[0,1.55,0],[1.5,1.5,0],
+.12,"#e6d8b9");
+
+// Simplified scapula
+bones.scapula = new THREE.Group();
+scene.add(bones.scapula);
+
+sphere(bones.scapula,-.65,.5,-.2,.75,.85,.16,"#d9cbaa");
+sphere(bones.scapula,-.1,1.2,-.2,.55,.14,.15,"#d9cbaa");
+sphere(bones.scapula,-.1,1.2,.0,.25,.2,.18,"#e8d9b8");
+
+// Simplified humerus
+bones.humerus = new THREE.Group();
+scene.add(bones.humerus);
+
+sphere(bones.humerus,.45,1.1,0,.4,.4,.4,"#f0e2c5");
+
+rod(bones.humerus,[.55,.9,0],[.9,-1.2,0],
+.2,"#e6d8b9");
+
+sphere(bones.humerus,.9,-1.2,0,.27,.3,.23,"#e6d8b9");
+
+const descriptions = {
+ all: "The shoulder region includes the clavicle, scapula and humerus.",
+ scapula: "Scapula: A flat triangular bone situated on the posterior aspect of the thoracic wall.",
+ humerus: "Humerus: The bone of the arm. Its head articulates with the glenoid cavity of scapula.",
+ clavicle: "Clavicle: An S-shaped bone connecting the upper limb to the axial skeleton."
+};
+
+function selectBone(name) {
+ Object.keys(bones).forEach(key => {
+  bones[key].visible = name === "all" || key === name;
+ });
+
+ document.querySelectorAll("button").forEach(b =>
+  b.classList.remove("active")
+ );
+
+ document.getElementById(name).classList.add("active");
+
+ document.getElementById("info").innerHTML =
+ "<h3>"+(name === "all" ? "Shoulder Joint" : name.toUpperCase())+
+ "</h3>"+descriptions[name];
+}
+
+["all","scapula","humerus","clavicle"].forEach(name => {
+ document.getElementById(name).onclick = () => selectBone(name);
+});
+
+document.getElementById("reset").onclick = () => {
+ camera.position.set(4,3,6);
+ controls.target.set(0,.3,0);
+ controls.update();
+};
+
+selectBone("all");
+
+function animate() {
+ requestAnimationFrame(animate);
+ controls.update();
+ renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener("resize",()=>{
+ camera.aspect=viewer.clientWidth/viewer.clientHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(viewer.clientWidth,viewer.clientHeight);
+});
+</script>
+
+</body>
+</html>
