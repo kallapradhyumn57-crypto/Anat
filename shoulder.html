@@ -93,7 +93,29 @@ button.active { background: #087f9d; }
     <button id="clavicle">Clavicle</button>
     <button id="reset">Reset</button>
   </div>
-
+  <div id="visual-panel" style="margin-top:14px;padding:14px;border-radius:14px;background:rgba(15,30,54,0.85);border:1px solid rgba(56,189,248,0.28);">
+    <div style="font-size:12px;letter-spacing:1.2px;color:#38bdf8;font-weight:700;margin-bottom:10px;text-transform:uppercase;">
+      Visual Thinking Lab
+    </div>
+    <div class="controls" style="margin-top:0;margin-bottom:12px;">
+      <button id="xray-toggle" type="button">X-Ray Ghost: OFF</button>
+      <button id="joint-zoom" type="button">Zoom Joint</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <button id="mov-abduction" class="mov-btn active" type="button" style="flex:1;padding:8px 4px;font-size:12px;">Abduction</button>
+      <button id="mov-flexion" class="mov-btn" type="button" style="flex:1;padding:8px 4px;font-size:12px;">Flexion</button>
+      <button id="mov-rotation" class="mov-btn" type="button" style="flex:1;padding:8px 4px;font-size:12px;">Rotation</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#cbd5e1;margin-bottom:6px;">
+      <span id="mov-label">Shoulder Abduction</span>
+      <span id="mov-deg" style="color:#38bdf8;font-weight:700;">0°</span>
+    </div>
+    <input id="mov-slider" type="range" min="0" max="180" value="0" style="width:100%;accent-color:#38bdf8;cursor:pointer;">
+    <div id="mov-note" style="font-size:12px;color:#94a3b8;margin-top:6px;">
+      Move slider to simulate 3D joint motion & Scapulohumeral Rhythm.
+    </div>
+  </div>
+  
   <div id="info">
     <h3>Shoulder Joint</h3>
     Select a bone to explore its basic anatomy.
@@ -474,31 +496,167 @@ const descriptions = {
  clavicle: "Clavicle: An S-shaped bone connecting the upper limb to the axial skeleton."
 };
 
-function selectBone(name) {
- Object.keys(bones).forEach(key => {
-  bones[key].visible = name === "all" || key === name;
- });
+  // Visual Thinking Mode: X-Ray Ghost Isolation + 3D Joint Biomechanics
+  let currentBone = "all";
+  let xrayMode = false;
+  let currentMovement = "abduction";
 
- document.querySelectorAll("button").forEach(b =>
-  b.classList.remove("active")
- );
+  // Pivot setup for anatomically accurate joint motion
+  const ghPivot = new THREE.Group();
+  ghPivot.position.set(0.28, 1.04, -0.10); // Glenohumeral joint center
+  scene.add(ghPivot);
+  bones.humerus.position.set(-0.28, -1.04, 0.10);
+  ghPivot.add(bones.humerus);
 
- document.getElementById(name).classList.add("active");
+  const scapPivot = new THREE.Group();
+  scapPivot.position.set(-0.75, 1.15, -0.18); // Scapulothoracic upward rotation axis
+  scene.add(scapPivot);
+  bones.scapula.position.set(0.75, -1.15, 0.18);
+  scapPivot.add(bones.scapula);
 
- document.getElementById("info").innerHTML =
- "<h3>"+(name === "all" ? "Shoulder Joint" : name.toUpperCase())+
- "</h3>"+descriptions[name];
-}
+  const clavPivot = new THREE.Group();
+  clavPivot.position.set(-1.42, 1.42, 0.24); // Sternoclavicular pivot
+  scene.add(clavPivot);
+  bones.clavicle.position.set(1.42, -1.42, -0.24);
+  clavPivot.add(bones.clavicle);
 
-["all","scapula","humerus","clavicle"].forEach(name => {
- document.getElementById(name).onclick = () => selectBone(name);
-});
+  function applyBoneAppearance() {
+    Object.keys(bones).forEach(key => {
+      const isSelected = currentBone === "all" || key === currentBone;
+      bones[key].visible = isSelected || xrayMode;
+      bones[key].traverse(child => {
+        if (child.isMesh && child.material) {
+          if (!child.userData.origMat) {
+            child.userData.origMat = child.material.clone();
+          }
+          if (isSelected) {
+            child.material.transparent = false;
+            child.material.opacity = 1.0;
+            child.material.depthWrite = true;
+            child.material.emissive.setHex(currentBone !== "all" ? 0x102838 : 0x000000);
+          } else if (xrayMode) {
+            child.material.transparent = true;
+            child.material.opacity = 0.20;
+            child.material.depthWrite = false;
+            child.material.emissive.setHex(0x0ea5e9);
+          }
+        }
+      });
+    });
+  }
 
-document.getElementById("reset").onclick = () => {
- camera.position.set(4,3,6);
- controls.target.set(0,.3,0);
- controls.update();
-};
+  function selectBone(name) {
+    currentBone = name;
+    applyBoneAppearance();
+
+    ["all", "scapula", "humerus", "clavicle"].forEach(id => {
+      document.getElementById(id).classList.remove("active");
+    });
+    document.getElementById(name).classList.add("active");
+
+    document.getElementById("info").innerHTML =
+      "<h3>" + (name === "all" ? "Shoulder Joint" : name.toUpperCase()) +
+      "</h3>" + descriptions[name];
+  }
+
+  ["all", "scapula", "humerus", "clavicle"].forEach(name => {
+    document.getElementById(name).onclick = () => selectBone(name);
+  });
+
+  // X-Ray Ghost Toggle
+  const xrayBtn = document.getElementById("xray-toggle");
+  xrayBtn.onclick = () => {
+    xrayMode = !xrayMode;
+    xrayBtn.textContent = xrayMode ? "X-Ray Ghost: ON" : "X-Ray Ghost: OFF";
+    xrayBtn.classList.toggle("active", xrayMode);
+    applyBoneAppearance();
+  };
+
+  // Smooth Zoom into Glenohumeral & AC Joint
+  document.getElementById("joint-zoom").onclick = () => {
+    camera.position.set(1.35, 1.45, 1.85);
+    controls.target.set(0.15, 1.15, -0.05);
+    controls.update();
+  };
+
+  // Joint Movement Simulator
+  const slider = document.getElementById("mov-slider");
+  const degText = document.getElementById("mov-deg");
+  const movLabel = document.getElementById("mov-label");
+  const movNote = document.getElementById("mov-note");
+
+  function updateJointMotion() {
+    const val = Number(slider.value);
+    degText.textContent = val + "°";
+
+    // Reset pivots
+    ghPivot.rotation.set(0, 0, 0);
+    scapPivot.rotation.set(0, 0, 0);
+    clavPivot.rotation.set(0, 0, 0);
+
+    if (currentMovement === "abduction") {
+      // Scapulohumeral Rhythm: First 30 deg pure GH, then 2:1 GH to Scapulothoracic ratio
+      const scapDeg = val > 30 ? (val - 30) / 3 : 0;
+      const ghDeg = val - scapDeg;
+      ghPivot.rotation.z = THREE.MathUtils.degToRad(ghDeg);
+      scapPivot.rotation.z = THREE.MathUtils.degToRad(scapDeg);
+      clavPivot.rotation.z = THREE.MathUtils.degToRad(scapDeg * 0.45);
+      movNote.textContent = val <= 30
+        ? "0°–30° Setting Phase: Pure Glenohumeral movement."
+        : "Scapulohumeral Rhythm (2:1): GH (" + Math.round(ghDeg) + "°) + Scapula upward rotation (" + Math.round(scapDeg) + "°).";
+    } else if (currentMovement === "flexion") {
+      const scapDeg = val > 45 ? (val - 45) / 3 : 0;
+      const ghDeg = val - scapDeg;
+      ghPivot.rotation.x = -THREE.MathUtils.degToRad(ghDeg);
+      scapPivot.rotation.z = THREE.MathUtils.degToRad(scapDeg * 0.7);
+      movNote.textContent = "Anterior elevation of Humerus in sagittal plane (" + val + "°).";
+    } else if (currentMovement === "rotation") {
+      ghPivot.rotation.y = THREE.MathUtils.degToRad(val);
+      movNote.textContent = val < 0
+        ? "Internal (Medial) Rotation: Lesser tubercle turns medially."
+        : val > 0
+          ? "External (Lateral) Rotation: Greater tubercle clears acromion."
+          : "Neutral rotational alignment (0°).";
+    }
+  }
+
+  function setMovementMode(mode) {
+    currentMovement = mode;
+    ["abduction", "flexion", "rotation"].forEach(m => {
+      document.getElementById("mov-" + m).classList.remove("active");
+    });
+    document.getElementById("mov-" + mode).classList.add("active");
+
+    if (mode === "abduction") {
+      movLabel.textContent = "Shoulder Abduction";
+      slider.min = 0; slider.max = 180; slider.value = 0;
+    } else if (mode === "flexion") {
+      movLabel.textContent = "Shoulder Flexion";
+      slider.min = 0; slider.max = 160; slider.value = 0;
+    } else if (mode === "rotation") {
+      movLabel.textContent = "Internal / External Rotation";
+      slider.min = -60; slider.max = 70; slider.value = 0;
+    }
+    updateJointMotion();
+  }
+
+  document.getElementById("mov-abduction").onclick = () => setMovementMode("abduction");
+  document.getElementById("mov-flexion").onclick = () => setMovementMode("flexion");
+  document.getElementById("mov-rotation").onclick = () => setMovementMode("rotation");
+  slider.oninput = updateJointMotion;
+
+  document.getElementById("reset").onclick = () => {
+    slider.value = 0;
+    setMovementMode("abduction");
+    xrayMode = false;
+    xrayBtn.textContent = "X-Ray Ghost: OFF";
+    xrayBtn.classList.remove("active");
+    selectBone("all");
+    camera.position.set(4, 3, 6);
+    controls.target.set(0, 0.3, 0);
+    controls.update();
+  };
+    
 
 selectBone("all");
 
